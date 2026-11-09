@@ -202,6 +202,58 @@ class Summary(BaseModel):
     assumptions: list[str]
 
 
+class UxCheck(BaseModel):
+    dimension: str
+    label: str
+    passed: bool
+    detail: str
+    evidence: list[Evidence] = []
+    severity: Optional[Severity] = None
+    why_it_matters: str = ""
+    how_to_fix: str = ""
+    confidence: Confidence = "media"
+    occurrences: int = 0
+    files_affected: int = 0
+
+
+class UxDimension(BaseModel):
+    id: str
+    name: str
+    question: str
+    status: Literal["bueno", "aceptable", "debil"]
+    checks: list[UxCheck]
+    passed: int
+    total: int
+
+
+class UxFinding(BaseModel):
+    id: str
+    dimension: str
+    title: str
+    severity: Severity
+    why_it_matters: str
+    how_to_fix: str
+    detail: str
+    occurrences: int
+    files_affected: int
+    evidence: list[Evidence]
+    confidence: Confidence = "media"
+
+
+class UxReview(BaseModel):
+    applicable: bool
+    surface: str
+    verdict: Literal["bueno", "mejorable", "deficiente", "no_aplica"]
+    headline: str
+    screens: int = 0
+    screen_names: list[str] = []
+    ui_files: int = 0
+    dimensions: list[UxDimension] = []
+    findings: list[UxFinding] = []
+    pertinence: list[str] = []
+    limits: list[str] = []
+
+
 class Report(BaseModel):
     meta: RepoMeta
     summary: Summary
@@ -212,6 +264,7 @@ class Report(BaseModel):
     debt: list[DebtFinding]
     recommendations: list[Recommendation]
     limitations: list[str]
+    ux: Optional[UxReview] = None
 
 
 # ----------------------------- Estado de trabajos -----------------------------

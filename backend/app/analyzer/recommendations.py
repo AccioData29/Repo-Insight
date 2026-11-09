@@ -148,5 +148,6 @@ LIMITATIONS = [
     "La deuda técnica se detecta por patrones: puede haber falsos positivos (p. ej. credenciales de ejemplo) y falsos negativos (problemas que no siguen un patrón conocido).",
     "No se auditan vulnerabilidades de dependencias (CVE) ni se mide cobertura real de pruebas; para eso se requiere integrar herramientas en el CI.",
     "Las fechas de fin de soporte de plataformas cambian: verifíquelas en la política oficial del fabricante.",
+    "La evaluación de UI/UX se basa solo en el código: no mide el aspecto visual ni la experiencia real de las personas; para eso se requieren pruebas de uso.",
     "Se analiza una sola instantánea (el último commit de la rama): no se evalúa historial, rotación del equipo ni frecuencia de cambios.",
 ]

@@ -144,3 +144,6 @@ details > summary { cursor: pointer; font-weight: 600; }
   .card { break-inside: avoid; border-color: #bbb; }
   .panel { display: block; }
 }
+
+.dims { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.checks { list-style: none; padding-left: 0; } .checks li { margin: 6px 0; }

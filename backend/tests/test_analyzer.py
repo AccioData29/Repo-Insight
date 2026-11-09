@@ -231,3 +231,45 @@ def test_commented_catch_and_login_call_are_not_debt(tmp_path):
     assert not any("registro de contraseñas" in t for t in titles)
     sw = [d for d in _run(repo).debt if "silenciados" in d.title][0]
     assert sw.occurrences == 1      # solo el catch vacío sin explicación
+
+
+# --- UI/UX ------------------------------------------------------------------------------
+def test_ux_not_applicable_for_backend_only(sample_repo):
+    rep = analyze_directory(sample_repo, dict(url="u", branch="main", owner="o", repo="r"))
+    assert rep.ux is not None and rep.ux.applicable is False and rep.ux.verdict == "no_aplica"
+
+
+def test_ux_flags_inaccessible_web_form(tmp_path):
+    repo = _mini_repo(tmp_path, {
+        "src/App.tsx": (
+            "export function App() {\n  return (<div>\n"
+            "    <img src='a.png' />\n"
+            "    <div onClick={go}>Enviar</div>\n"
+            "    <input type='text' /><input type='text' /><input type='text' />\n"
+            "    <button onClick={go}>OK</button>\n"
+            "  </div>);\n}\n"),
+    })
+    ux = _run(repo).ux
+    assert ux.applicable and "web" in ux.surface.lower()
+    titles = {f.title for f in ux.findings}
+    assert "Imágenes con texto alternativo" in titles
+    assert "Elementos clicables con semántica correcta" in titles
+    assert ux.verdict in ("mejorable", "deficiente")
+
+
+def test_ux_good_practices_recognized(tmp_path):
+    repo = _mini_repo(tmp_path, {
+        "app/src/ui/LoginScreen.tsx": (
+            "import { View, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView } from 'react-native';\n"
+            "export function LoginScreen() {\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState('');\n"
+            "  return (<KeyboardAvoidingView>\n"
+            "    <TextInput accessibilityLabel='Correo' keyboardType='email-address' />\n"
+            "    <TextInput accessibilityLabel='Clave' secureTextEntry />\n"
+            "    <Pressable accessibilityRole='button' accessibilityLabel='Entrar' disabled={loading} onPress={go}/>\n"
+            "    {loading && <ActivityIndicator/>}{error ? <Text accessibilityRole='alert'>{error}</Text> : null}\n"
+            "  </KeyboardAvoidingView>);\n}\n"),
+    })
+    ux = _run(repo).ux
+    dims = {d.id: d.status for d in ux.dimensions}
+    assert dims["accesibilidad"] == "bueno" and dims["formularios"] in ("bueno", "aceptable")
+    assert [n.lower() for n in ux.screen_names] == ["login"]

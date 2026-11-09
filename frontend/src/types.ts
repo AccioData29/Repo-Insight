@@ -90,9 +90,23 @@ export interface Summary {
   top_risks: string[]; first_actions: string[]; assumptions: string[];
 }
 
+export interface UxCheck {
+  dimension: string; label: string; passed: boolean; detail: string; evidence: Evidence[]; severity: Severity | null;
+  why_it_matters: string; how_to_fix: string; confidence: Confidence; occurrences: number; files_affected: number;
+}
+export interface UxDimension { id: string; name: string; question: string; status: "bueno" | "aceptable" | "debil"; checks: UxCheck[]; passed: number; total: number }
+export interface UxFinding {
+  id: string; dimension: string; title: string; severity: Severity; why_it_matters: string; how_to_fix: string; detail: string;
+  occurrences: number; files_affected: number; evidence: Evidence[]; confidence: Confidence;
+}
+export interface UxReview {
+  applicable: boolean; surface: string; verdict: "bueno" | "mejorable" | "deficiente" | "no_aplica"; headline: string; screens: number;
+  screen_names: string[]; ui_files: number; dimensions: UxDimension[]; findings: UxFinding[]; pertinence: string[]; limits: string[];
+}
+
 export interface Report {
   meta: RepoMeta; summary: Summary; architecture: Architecture; rules: Rule[]; entry_points: EntryPoint[];
-  flows: Flow[]; debt: DebtFinding[]; recommendations: Recommendation[]; limitations: string[];
+  flows: Flow[]; debt: DebtFinding[]; recommendations: Recommendation[]; limitations: string[]; ux?: UxReview | null;
 }
 
 export type Audience = "negocio" | "tecnica";
