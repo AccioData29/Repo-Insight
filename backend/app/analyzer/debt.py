@@ -83,7 +83,15 @@ _TOKEN_PATTERNS = [
     (re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"), "llave privada"),
 ]
 _DEVISH = re.compile(r"(?i)(development|\.dev\b|\.local\b|local|example|sample|template|\.test\b|test|\.dist\b)")
+_NONPROD = re.compile(r"(?i)(^|/)(tests?|__tests__|testing|fixtures?|mocks?|__mocks__|e2e|specs?|evidencias|docs?|poc|spikes?\w*|samples?|examples?)(/|$)|\.(test|spec)\.|(^|/)tools/")
 _AMBIG = re.compile(r"(?i)(docker|compose|override|staging|\.qa\b|\.uat\b|sandbox)")
+
+
+def _looks_like_secret(val: str) -> bool:
+    """Un valor tipo «required» o «password_policy» es un código de error, no una clave."""
+    if re.fullmatch(r"[a-z][a-z0-9_.\-]*", val) or not re.search(r"\w", val):
+        return False
+    return bool(re.search(r"\d", val) or re.search(r"[!@#$%^&*]", val)) and " " not in val and len(val) >= 8
 
 
 def _is_path_like(val: str) -> bool:
@@ -131,6 +139,8 @@ def detect_secrets(inv: Inventory) -> list[DebtFinding]:
                     (conn_dev if devish else conn_exposed).append(Hit(fi, i, line))
 
     for fi in inv.iter_files(code=True):
+        if _NONPROD.search(fi.rel):
+            continue
         text = inv.text(fi)
         for i, line in enumerate(text.splitlines(), 1):
             if len(line) > 600 or line.lstrip().startswith(("//", "#", "*", "/*")):
@@ -141,11 +151,13 @@ def detect_secrets(inv: Inventory) -> list[DebtFinding]:
                     break
             else:
                 km = re.search(r"""(?i)\b\w*(?:password|passwd|pwd|secret|apikey|api_key|token)\w*\s*=\s*["']([^"']{4,})["']""", line)
-                if km and not _PLACEHOLDER.match(km.group(1)) and not re.search(r"(?i)(\s|:|\.|/)", km.group(1)[:1]):
+                if km and not _PLACEHOLDER.match(km.group(1)) and not re.search(r"(?i)(\s|:|\.|/)", km.group(1)[:1]) \
+                        and _looks_like_secret(km.group(1)) and not re.search(r"[=!]==?\s*[\"']", line):
                     code_hits.append(Hit(fi, i, line))
                     continue
                 cm = _CONN_PWD.search(line)
-                if cm and not _PLACEHOLDER.match(cm.group(1)) and re.search(r"[\"']", line):
+                if cm and not _PLACEHOLDER.match(cm.group(1)) and re.search(r"[\"']", line) \
+                        and re.search(r"(?i)\b(server|data source|host|user id|uid|provider)\s*=", line):
                     code_hits.append(Hit(fi, i, line))
 
     out: list[DebtFinding] = []
@@ -218,7 +230,10 @@ def detect_sql_injection(inv: Inventory) -> list[DebtFinding]:
     hits: list[Hit] = []
     for fi in inv.iter_files(code=True):
         for i, line in enumerate(inv.lines(fi), 1):
-            if len(line) < 600 and any(rx.search(line) for rx in _SQLI):
+            if _NONPROD.search(fi.rel):
+                break
+            if len(line) < 600 and any(rx.search(line) for rx in _SQLI) \
+                    and not re.search(r"\$\{\s*(?:quote|escape|sqlEscape|sqlQuote|sqlString)\w*\(", line):
                 hits.append(Hit(fi, i, line))
     if not hits:
         return []
@@ -250,6 +265,8 @@ def detect_ocr(inv: Inventory) -> list[DebtFinding]:
     code_files: list[tuple[FileInfo, int, str]] = []
     manifests: list[Hit] = []
     for fi in inv.iter_files():
+        if _NONPROD.search(fi.rel):
+            continue
         if fi.is_code:
             text = inv.text(fi)
             if not text:
@@ -290,6 +307,9 @@ def detect_ocr(inv: Inventory) -> list[DebtFinding]:
 
     serious = sum(1 for s in issues if not s.startswith(("No hay preprocesamiento", "Modelos de idioma")))
     sev = "high" if serious >= 3 else "medium" if serious >= 1 else "low"
+    if not in_request and not manifests and sev != "low":
+        sev = "low"      # OCR local (sin servidor ni servicio en la nube): el riesgo operativo es menor
+        issues.append("No se observa un servidor ni un servicio en la nube de OCR: parece procesarse localmente, por eso la urgencia se limita a baja.")
     if not issues:
         return []
     hits = [Hit(fi, ln, line) for fi, ln, line in code_files] + manifests
@@ -408,7 +428,7 @@ def detect_async_misuse(inv: Inventory) -> list[DebtFinding]:
 
 def detect_swallowed_exceptions(inv: Inventory) -> list[DebtFinding]:
     pats = [
-        re.compile(r"catch\s*(?:\([^)]*\))?\s*\{\s*(?://[^\n]*)?\s*\}"),
+        re.compile(r"catch\s*(?:\([^)]*\))?\s*\{\s*(?://\s*(?:TODO|ignore|ignorar|noop)?[^\n]{0,14})?\s*\}"),   # con un comentario que explica la decisión, no se marca
         re.compile(r"except[^\n:]*:[ \t]*\n[ \t]+(?:pass|\.\.\.)[ \t]*(?:#[^\n]*)?(?:\n|$)"),
     ]
     hits: list[Hit] = []
@@ -459,8 +479,8 @@ def detect_cors(inv: Inventory) -> list[DebtFinding]:
 
 
 def detect_sensitive_logging(inv: Inventory) -> list[DebtFinding]:
-    rx = re.compile(r"(?i)(?:log\w*|logger\.\w+|console\.(?:log|error|warn)|print|Console\.Write(?:Line)?)\s*\(.*(?:\{[^}]*(?:password|token|secret|authorization)[^}]*\}|\+\s*\w*(?:password|token|secret)\w*|,\s*\w*(?:password|token|secret)\w*\s*[,)])")
-    hits = _scan(inv, rx, code=True)
+    rx = re.compile(r"(?:\b[Ll]og(?:ger|ging)?(?:[A-Z]\w*)?|\blogger\.\w+|console\.(?:log|error|warn)|\bprint|Console\.Write(?:Line)?)\s*\(.*(?:\{[^}]*(?i:password|token|secret|authorization)[^}]*\}|\+\s*\w*(?i:password|token|secret)\w*|,\s*\w*(?i:password|token|secret)\w*\s*[,)])")
+    hits = [h for h in _scan(inv, rx, code=True) if not _NONPROD.search(h.fi.rel)]
     if not hits:
         return []
     return [_finding(
@@ -479,7 +499,7 @@ def detect_hardcoded_environment(inv: Inventory) -> list[DebtFinding]:
         for i, line in enumerate(inv.lines(fi), 1):
             if len(line) > 400 or line.lstrip().startswith(("//", "#", "*", "<!--")):
                 continue
-            if re.search(r"(?i)version|assembly|xmlns|include=|publickeytoken|culture=", line):
+            if re.search(r"(?i)version|assembly|xmlns|include=|publickeytoken|culture=|\bd\s*[:=]\s*[\"']M|<path\b", line):
                 continue
             m = ip.search(line)
             if m and not m.group(0).startswith(("127.", "0.", "255.")):

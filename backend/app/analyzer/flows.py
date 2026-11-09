@@ -21,7 +21,7 @@ LAYER_LABEL = {
 }
 
 _SUFFIX_LAYER = [
-    (re.compile(r"(Controller|Resource|Endpoint|Endpoints|Router|Routes|View|ViewSet)$"), "controller"),
+    (re.compile(r"(Controller|Resource|Endpoint|Endpoints|Router|Routes|View|ViewSet|Screen|Page)$"), "controller"),
     (re.compile(r"(Consumer|Listener|Subscriber|Job|Worker|Scheduler|HostedService|BackgroundService|Task|Processor|Handler)$"), "worker"),
     (re.compile(r"(Service|Manager|UseCase|Interactor|Facade|Orchestrator|Engine|Calculator|Policy|Validator|Rules?|Command|Query|Workflow|Saga)$"), "service"),
     (re.compile(r"(Repository|Repo|Dao|DAO|DbContext|Store|Gateway|Persistence|Dal)$"), "repository"),
@@ -31,7 +31,7 @@ _PATH_LAYER = [
     (re.compile(r"(?i)(^|/)(controllers?|endpoints?|routes?|api|resources|views)/"), "controller"),
     (re.compile(r"(?i)(^|/)(consumers?|jobs?|workers?|background|listeners?|hosted)/"), "worker"),
     (re.compile(r"(?i)(^|/)(services?|usecases?|use_cases?|application|handlers?|commands?|queries|business|domain/services)/"), "service"),
-    (re.compile(r"(?i)(^|/)(repositories|repository|persistence|dal|dao|data|infrastructure/data)/"), "repository"),
+    (re.compile(r"(?i)(^|/)(repositories|repository|persistence|dal|dao|data|database|infrastructure/data)/"), "repository"),
     (re.compile(r"(?i)(^|/)(clients?|integrations?|gateways?|adapters?|external|connectors?)/"), "integration"),
 ]
 _MODEL_HINT = re.compile(r"(?i)(^|/)(models?|entities|entity|dtos?|contracts|viewmodels?|enums?|exceptions?|constants?|options|config(uration)?)(/|$)|(Dto|DTO|Request|Response|Model|ViewModel|Entity|Exception|Enum|Options|Settings|Config|Attribute|Extensions?|Helper|Utils?)$")
@@ -177,6 +177,18 @@ def find_entry_points(inv: Inventory) -> list[EntryPoint]:
                 m = re.search(r"<Route\s+[^>]*path=[\"']([^\"']*)[\"'][^>]*element=\{<(\w+)", s)
                 if m:
                     add("Pantalla", None, "/" + m.group(1).strip("/"), m.group(2), fi, i)
+    if not eps:   # apps móviles/SPA sin enrutador reconocible: cada componente «Screen/Page» es una entrada
+        for fi in inv.iter_files(code=True):
+            if fi.lang not in ("TypeScript", "JavaScript") or not re.search(r"\.(tsx|jsx)$", fi.name):
+                continue
+            if re.search(r"(?i)(\.test\.|\.spec\.|__tests__|/testing/|/evidencias/|/poc/)", fi.rel):
+                continue
+            stem = fi.name.rsplit(".", 1)[0]
+            if re.search(r"(Screen|Page)$", stem):
+                for i, line in enumerate(inv.lines(fi), 1):
+                    if re.match(rf"\s*export\s+(?:default\s+)?(?:function|const)\s+{re.escape(stem)}\b", line):
+                        add("Pantalla", None, None, stem, fi, i)
+                        break
     seen = set()
     uniq = []
     for e in eps:
@@ -358,8 +370,9 @@ def build_flows(inv: Inventory, entry_points: list[EntryPoint], rules: list[Rule
         rules_by_file[r.evidence.file].append(r.id)
 
     groups: dict[str, list[EntryPoint]] = defaultdict(list)
+    only_screens = all(ep.kind == "Pantalla" for ep in entry_points)   # sin API/jobs: las pantallas son el flujo
     for ep in entry_points:
-        if ep.kind == "Pantalla":
+        if ep.kind == "Pantalla" and not only_screens:
             continue
         groups[ep.file].append(ep)
 
@@ -390,7 +403,7 @@ def build_flows(inv: Inventory, entry_points: list[EntryPoint], rules: list[Rule
                                   name=display_name(n) if n.split("@")[0].startswith("I") and re.match(r"^I[A-Z][a-z]", n) else n.split("@")[0], file=nd.file.rel,
                                   description=f"{LAYER_LABEL.get(nd.layer, 'Componente')}: {words(display_name(n))}"))
         kind = eps[0].kind
-        title_base = re.sub(r"(Controller|Resource|Endpoints?|Router)$", "", start.split("@")[0]) or start
+        title_base = re.sub(r"(Controller|Resource|Endpoints?|Router|Screen|Page)$", "", start.split("@")[0]) or start
         api = [e for e in eps if e.kind == "API"]
         uniq = list(dict.fromkeys(f"{e.method or ''} {e.route}".strip() for e in api))
         routes = ", ".join(uniq[:4])
@@ -400,6 +413,8 @@ def build_flows(inv: Inventory, entry_points: list[EntryPoint], rules: list[Rule
             narrative = f"Cuando llega una solicitud a {routes}{' (y otras rutas)' if len(uniq) > 4 else ''}, «{entry_name}» recibe el trabajo"
         elif "programado" in kind.lower() or "segundo plano" in kind.lower() or "tarea" in kind.lower():
             narrative = f"El proceso automático «{entry_name}» se ejecuta sin intervención de un usuario"
+        elif kind == "Pantalla":
+            narrative = f"Cuando la persona usuaria abre la pantalla «{entry_name}», esta coordina la interacción"
         else:
             narrative = f"Cuando llega un mensaje o evento, «{entry_name}» lo recibe"
         if later:

@@ -59,10 +59,10 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
                 <button className={aud === "tecnica" ? "on" : ""} onClick={() => setAud("tecnica")}>Vista técnica</button>
               </div>
               <div className="row gap">
-                <a className="btn btn-secondary" href={exportMdUrl(jobId)} download>Markdown</a>
-                <button className="btn btn-secondary" onClick={downloadJson}>JSON</button>
-                <button className="btn btn-secondary" onClick={() => window.print()}>Imprimir / PDF</button>
-                <button className="btn btn-primary" onClick={onNew}>Nuevo análisis</button>
+                {jobId && <a className="btn btn-secondary" href={exportMdUrl(jobId)} download>Markdown</a>}
+                {jobId && <button className="btn btn-secondary" onClick={downloadJson}>JSON</button>}
+                {jobId && <button className="btn btn-secondary" onClick={() => window.print()}>Imprimir / PDF</button>}
+                {jobId && <button className="btn btn-primary" onClick={onNew}>Nuevo análisis</button>}
               </div>
             </div>
           </div>

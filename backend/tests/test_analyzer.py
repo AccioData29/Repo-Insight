@@ -179,3 +179,55 @@ def test_interface_resolution_ignores_generic_args_and_ambiguous_interfaces(tmp_
         assert "EfRepository" in edges[ep], ep                       # IRepository -> su única implementación
         assert not ({"AEndpoint", "BEndpoint", "CEndpoint"} & edges[ep]), ep   # IEndpoint (ambigua) no enlaza endpoints entre sí
     assert "Base de datos" in nodes["EfRepository"].externals
+
+
+# --- Regresiones encontradas al probar un repo real (app móvil React Native) -------------
+def _mini_repo(tmp_path, files: dict):
+    for rel, body in files.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(body, encoding="utf-8")
+    return tmp_path
+
+
+def _run(tmp_path):
+    return analyze_directory(tmp_path, dict(url="u", branch="main", owner="o", repo="r"))
+
+
+def test_error_codes_and_fixtures_are_not_secrets(tmp_path):
+    repo = _mini_repo(tmp_path, {
+        "app/src/auth/validation.ts": "export function v(errors: any) {\n  errors.password = 'password_policy';\n  if (errors.password === 'required') {}\n}\n",
+        "app/testing/fixtures.ts": "export const password = 'Clave123!';\n",
+        "app/src/ui/LoginScreen.tsx": "export function LoginScreen() {\n  const e = validateLoginInput(identifier, password);\n  return null;\n}\n",
+    })
+    rep = _run(repo)
+    titles = [d.title for d in rep.debt]
+    assert not any("Credenciales" in t for t in titles)
+    assert not any("registro de contraseñas" in t for t in titles)
+
+
+def test_real_hardcoded_secret_still_detected(tmp_path):
+    repo = _mini_repo(tmp_path, {"src/db.ts": "const dbPassword = 'Pr0d-S3cret!99';\n"})
+    assert any("Credenciales" in d.title for d in _run(repo).debt)
+
+
+def test_screens_become_flows_without_router(tmp_path):
+    repo = _mini_repo(tmp_path, {
+        "app/src/presentation/login/LoginScreen.tsx": "import { loginAccount } from '../../services/accountLogin';\nexport function LoginScreen() { return loginAccount(); }\n",
+        "app/src/services/accountLogin.ts": "import { db } from '../infrastructure/database/encryptedDatabase';\nexport function loginAccount() { return db; }\n",
+        "app/src/infrastructure/database/encryptedDatabase.ts": "export const db = {};\n",
+    })
+    rep = _run(repo)
+    assert rep.flows, "debe haber al menos un flujo por pantalla"
+    assert [s.name for s in rep.flows[0].steps][:2] == ["LoginScreen", "accountLogin"]
+
+
+def test_commented_catch_and_login_call_are_not_debt(tmp_path):
+    repo = _mini_repo(tmp_path, {
+        "src/a.ts": "async function f(gateway: any, identifier: string, password: string) {\n  try { x(); } catch {\n    // Un fallo del OCR equivale a no haber identificado datos.\n  }\n  return gateway.login(identifier, password);\n}\n",
+        "src/b.ts": "function g() { try { x(); } catch {} }\n",
+    })
+    titles = [d.title for d in _run(repo).debt]
+    assert not any("registro de contraseñas" in t for t in titles)
+    sw = [d for d in _run(repo).debt if "silenciados" in d.title][0]
+    assert sw.occurrences == 1      # solo el catch vacío sin explicación
