@@ -104,9 +104,29 @@ export interface UxReview {
   screen_names: string[]; ui_files: number; dimensions: UxDimension[]; findings: UxFinding[]; pertinence: string[]; limits: string[];
 }
 
+export interface AiTool { tool: string; commits: number; lines_surviving: number; how_detected: string; samples: string[] }
+export interface Indicator { label: string; observed: boolean; detail: string }
+export interface Collaborator {
+  name: string; kind: "persona" | "bot" | "ia"; commits: number; ai_declared_commits: number; lines_added: number; lines_surviving: number;
+  codebase_share_pct: number; survival_pct: number; ai_share_pct: number; test_share_pct: number; first_commit: string; last_commit: string; top_areas: string[];
+}
+export interface OriginQuality { origin: string; lines: number; share_pct: number; files_over_600: number; test_share_pct: number; debt_evidence_files: number }
+export interface FoundationCheck { label: string; passed: boolean; detail: string; why: string }
+export interface AuthorshipReview {
+  available: boolean; reason: string;
+  verdict: "ia_mayoritaria" | "mixto" | "humano_con_apoyo_ia" | "senales_sin_atribucion" | "sin_evidencia" | "no_disponible";
+  headline: string; commits: number; collaborators_count: number; first_commit: string; last_commit: string; truncated: boolean;
+  lines_analyzed: number; lines_ai: number; lines_human: number; lines_bot: number; ai_pct: number; ai_authored_pct: number; ai_coauthored_pct: number;
+  ai_added_total: number; ai_survived: number; human_added_total: number; human_survived: number;
+  tools: AiTool[]; artifacts: string[]; indicators: Indicator[];
+  intervention_level: "alta" | "media" | "baja" | "no_medible"; intervention_text: string; intervention_facts: string[];
+  collaborators: Collaborator[]; quality: OriginQuality[];
+  foundations_level: "solidas" | "aceptables" | "fragiles"; foundations_text: string; foundations: FoundationCheck[]; limits: string[];
+}
+
 export interface Report {
   meta: RepoMeta; summary: Summary; architecture: Architecture; rules: Rule[]; entry_points: EntryPoint[];
-  flows: Flow[]; debt: DebtFinding[]; recommendations: Recommendation[]; limitations: string[]; ux?: UxReview | null;
+  flows: Flow[]; debt: DebtFinding[]; recommendations: Recommendation[]; limitations: string[]; ux?: UxReview | null; authorship?: AuthorshipReview | null;
 }
 
 export type Audience = "negocio" | "tecnica";

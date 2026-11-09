@@ -24,6 +24,31 @@ def to_markdown(r: Report) -> str:
         for e in d.evidence[:5]:
             out.append(f"- `{e.file}:{e.line}` — {e.snippet}")
         out.append("")
+    if r.ux:
+        u = r.ux
+        out += ["## UI/UX", "", f"**Canal:** {u.surface} · **Veredicto:** {u.verdict}", "", u.headline, ""]
+        if u.applicable:
+            out += ["### Pertinencia", ""] + [f"- {x}" for x in u.pertinence] + ["", "### Dimensiones", ""]
+            for d in u.dimensions:
+                out.append(f"- **{d.name}** — {d.status} ({d.passed}/{d.total}): " + "; ".join(("✔ " if c.passed else "✘ ") + c.label for c in d.checks))
+            out.append("")
+            for f in u.findings:
+                out += [f"### {f.id} · {f.title}", f"**{SEV[f.severity]}** · confianza {f.confidence}", "", f"**Por qué importa:** {f.why_it_matters}", "",
+                        f"**Cómo mejorarlo:** {f.how_to_fix}", "", f"{f.detail}", ""]
+                out += [f"- `{e.file}:{e.line}` — {e.snippet}" for e in f.evidence[:4]]
+                out.append("")
+            out += ["### Límites de esta evaluación", ""] + [f"- {x}" for x in u.limits] + [""]
+    if r.authorship and r.authorship.available:
+        a = r.authorship
+        out += ["## Autoría: IA y equipo", "", f"**{a.headline}**", "",
+                f"- {a.commits} commits · {a.first_commit} a {a.last_commit} · {a.lines_analyzed} líneas vigentes · IA declarada: **{a.ai_pct}%** (mínimo)",
+                f"- Intervención humana: **{a.intervention_level}** — {a.intervention_text}"] + [f"  - {x}" for x in a.intervention_facts]
+        out += ["", "### Herramientas de IA detectadas", ""] + ([f"- {t.tool}: {t.commits} commits, {t.lines_surviving} líneas vigentes ({t.how_detected})" for t in a.tools] or ["- Ninguna declarada."])
+        out += ["", "### Por colaborador", "", "| Colaborador | Commits | % del código vigente | Sobrevive | Con IA declarada |", "|---|---|---|---|---|"]
+        out += [f"| {c.name} | {c.commits} | {c.codebase_share_pct}% | {c.survival_pct}% | {c.ai_share_pct}% |" for c in a.collaborators]
+        out += ["", f"### Bases tecnológicas: {a.foundations_level}", "", a.foundations_text, ""]
+        out += [f"- {'✔' if f.passed else '✘'} {f.label}: {f.detail}" for f in a.foundations]
+        out += ["", "### Límites", ""] + [f"- {x}" for x in a.limits] + [""]
     out += ["## Reglas de negocio", ""]
     cat = None
     for rule in r.rules:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from ..models import Platform, Privacy, Report, RepoMeta
-from . import architecture, debt, enrich, flows, recommendations, rules as rules_mod, summary, ux
+from . import architecture, debt, enrich, flows, recommendations, rules as rules_mod, summary, ux, authorship
 from .common import Inventory
 
 Progress = Callable[[str, int, str], None]
@@ -40,7 +40,11 @@ def analyze_directory(root: Path, meta: dict, progress: Optional[Progress] = Non
     p("UI/UX", 89, "Evaluando la interfaz de usuario…")
     ux_review = ux.build(inv, entry_points)
 
-    p("Recomendaciones", 90, "Evaluando alternativas de arquitectura…")
+    p("Autoría", 90, "Midiendo autoría (IA y personas) con el historial de git…")
+    authorship_review = authorship.build(root, inv, debt_list, arch)
+    p("Autoría", 91, authorship_review.headline[:120])
+
+    p("Recomendaciones", 92, "Evaluando alternativas de arquitectura…")
     recs = recommendations.build(inv, arch, debt_list, rule_list)
 
     if ai and enrich.available():
@@ -58,5 +62,5 @@ def analyze_directory(root: Path, meta: dict, progress: Optional[Progress] = Non
             commit_message=meta.get("message", ""), analyzed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             blob_url_template=meta.get("blob_url_template", ""), files_analyzed=len(inv.files), lines_of_code=loc),
         summary=sm, architecture=arch, rules=rule_list, entry_points=entry_points, flows=flow_list, debt=debt_list,
-        recommendations=recs, limitations=recommendations.LIMITATIONS, ux=ux_review)
+        recommendations=recs, limitations=recommendations.LIMITATIONS, ux=ux_review, authorship=authorship_review)
     return report

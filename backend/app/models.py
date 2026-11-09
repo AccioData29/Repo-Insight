@@ -254,6 +254,87 @@ class UxReview(BaseModel):
     limits: list[str] = []
 
 
+class AiTool(BaseModel):
+    tool: str
+    commits: int
+    lines_surviving: int = 0
+    how_detected: str
+    samples: list[str] = []
+
+
+class Indicator(BaseModel):
+    label: str
+    observed: bool
+    detail: str
+
+
+class Collaborator(BaseModel):
+    name: str
+    kind: Literal["persona", "bot", "ia"]
+    commits: int
+    ai_declared_commits: int
+    lines_added: int
+    lines_surviving: int
+    codebase_share_pct: float
+    survival_pct: float
+    ai_share_pct: float                 # % de SUS líneas vigentes que vienen de commits con IA declarada
+    test_share_pct: float               # % de sus líneas vigentes que están en pruebas
+    first_commit: str = ""
+    last_commit: str = ""
+    top_areas: list[str] = []
+
+
+class OriginQuality(BaseModel):
+    origin: str                         # "IA declarada" | "Humano / sin declarar"
+    lines: int
+    share_pct: float
+    files_over_600: int
+    test_share_pct: float
+    debt_evidence_files: int
+
+
+class FoundationCheck(BaseModel):
+    label: str
+    passed: bool
+    detail: str
+    why: str = ""
+
+
+class AuthorshipReview(BaseModel):
+    available: bool
+    reason: str = ""
+    verdict: Literal["ia_mayoritaria", "mixto", "humano_con_apoyo_ia", "senales_sin_atribucion", "sin_evidencia", "no_disponible"] = "no_disponible"
+    headline: str = ""
+    commits: int = 0
+    collaborators_count: int = 0
+    first_commit: str = ""
+    last_commit: str = ""
+    truncated: bool = False
+    lines_analyzed: int = 0
+    lines_ai: int = 0
+    lines_human: int = 0
+    lines_bot: int = 0
+    ai_pct: float = 0
+    ai_authored_pct: float = 0          # IA como autora directa (bot/agente)
+    ai_coauthored_pct: float = 0        # IA declarada como coautora de un commit de una persona
+    ai_added_total: int = 0
+    ai_survived: int = 0
+    human_added_total: int = 0
+    human_survived: int = 0
+    tools: list[AiTool] = []
+    artifacts: list[str] = []
+    indicators: list[Indicator] = []
+    intervention_level: Literal["alta", "media", "baja", "no_medible"] = "no_medible"
+    intervention_text: str = ""
+    intervention_facts: list[str] = []
+    collaborators: list[Collaborator] = []
+    quality: list[OriginQuality] = []
+    foundations_level: Literal["solidas", "aceptables", "fragiles"] = "aceptables"
+    foundations_text: str = ""
+    foundations: list[FoundationCheck] = []
+    limits: list[str] = []
+
+
 class Report(BaseModel):
     meta: RepoMeta
     summary: Summary
@@ -265,6 +346,7 @@ class Report(BaseModel):
     recommendations: list[Recommendation]
     limitations: list[str]
     ux: Optional[UxReview] = None
+    authorship: Optional[AuthorshipReview] = None
 
 
 # ----------------------------- Estado de trabajos -----------------------------

@@ -273,3 +273,76 @@ def test_ux_good_practices_recognized(tmp_path):
     dims = {d.id: d.status for d in ux.dimensions}
     assert dims["accesibilidad"] == "bueno" and dims["formularios"] in ("bueno", "aceptable")
     assert [n.lower() for n in ux.screen_names] == ["login"]
+
+
+# --- Autoría (git real en un directorio temporal) ------------------------------------------
+import subprocess as _sp
+
+
+def _git_repo(tmp_path, commits):
+    """commits: lista de (autor, mensaje, {ruta: contenido})."""
+    def g(*a, env=None):
+        _sp.run(["git", "-C", str(tmp_path), "-c", "commit.gpgsign=false", *a], check=True, capture_output=True, env=env)
+    _sp.run(["git", "init", "-q", "-b", "main", str(tmp_path)], check=True)
+    import os
+    for i, (author, msg, files) in enumerate(commits):
+        for rel, body in files.items():
+            p = tmp_path / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+        g("add", "-A")
+        env = {**os.environ, "GIT_AUTHOR_NAME": author, "GIT_AUTHOR_EMAIL": f"{author.lower().replace(' ', '.')}@example.org",
+               "GIT_COMMITTER_NAME": author, "GIT_COMMITTER_EMAIL": f"{author.lower().replace(' ', '.')}@example.org",
+               "GIT_AUTHOR_DATE": f"2026-01-{i + 1:02d}T10:00:00+00:00", "GIT_COMMITTER_DATE": f"2026-01-{i + 1:02d}T10:00:00+00:00"}
+        g("commit", "-q", "-m", msg, env=env)
+    return tmp_path
+
+
+def test_authorship_counts_ai_coauthored_and_human_lines(tmp_path):
+    ai_body = "\n".join(f"export const v{i} = {i};" for i in range(80)) + "\n"
+    repo = _git_repo(tmp_path, [
+        ("Ana Perez", "feat: modulo\n\nCo-Authored-By: Claude Opus <noreply@anthropic.com>", {"src/a.ts": ai_body}),
+        ("Luis Gomez", "fix: ajusta valores", {"src/b.ts": "export const humano = 1;\nexport const otro = 2;\n"}),
+        ("Luis Gomez", "docs: lee", {"README.md": "# Proyecto\n"}),
+    ])
+    a = _run(repo).authorship
+    assert a.available and a.commits == 3
+    assert a.tools and a.tools[0].tool.startswith("Claude")
+    assert 90 < a.ai_pct < 99                       # 80 líneas de IA frente a 3 humanas
+    names = {c.name: c for c in a.collaborators}
+    assert names["Ana Perez"].ai_declared_commits == 1 and names["Ana Perez"].ai_share_pct == 100
+    assert names["Luis Gomez"].ai_share_pct == 0 and names["Luis Gomez"].commits == 2
+    assert a.verdict == "ia_mayoritaria"
+    assert "@" not in a.model_dump_json().replace("noreply@anthropic.com", "")   # no se exponen correos
+
+
+def test_authorship_human_edits_raise_intervention(tmp_path):
+    body = "\n".join(f"line{i} = {i}" for i in range(40)) + "\n"
+    edited = "\n".join(f"line{i} = {i + 1}" if i % 2 == 0 else f"line{i} = {i}" for i in range(40)) + "\n"
+    repo = _git_repo(tmp_path, [
+        ("Ana Perez", "feat\n\nCo-Authored-By: Claude <noreply@anthropic.com>", {"core.py": body}),
+        ("Luis Gomez", "refactor propio", {"core.py": edited}),
+    ])
+    a = _run(repo).authorship
+    assert a.intervention_level == "alta"
+    assert a.verdict in ("mixto", "humano_con_apoyo_ia")
+
+
+def test_authorship_no_ai_means_no_evidence(tmp_path):
+    repo = _git_repo(tmp_path, [("Ana Perez", "init", {"a.py": "x = 1\ny = 2\n"})])
+    a = _run(repo).authorship
+    assert a.verdict == "sin_evidencia" and a.intervention_level == "no_medible" and a.ai_pct == 0
+
+
+def test_authorship_unavailable_without_git(tmp_path):
+    repo = _mini_repo(tmp_path, {"a.py": "x = 1\n"})
+    a = _run(repo).authorship
+    assert a is not None and a.available is False
+
+
+def test_markdown_export_includes_ux_and_authorship(tmp_path):
+    from app.export import to_markdown
+    repo = _git_repo(tmp_path, [("Ana Perez", "feat\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+                                 {"src/App.tsx": "export function App() { return (<div><button onClick={go}>OK</button></div>); }\n"})])
+    md = to_markdown(_run(repo))
+    assert "## UI/UX" in md and "## Autoría: IA y equipo" in md

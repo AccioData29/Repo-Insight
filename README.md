@@ -6,6 +6,7 @@ Entienda un repositorio sin leer todo el código. Usted entrega el enlace; el si
 - **Flujos del sistema** (diagramas Mermaid + narrativa) desde los puntos de entrada hasta datos y sistemas externos.
 - **Deuda técnica** con urgencia (crítica ≤7 días, alta ≤30, media ≤90, baja oportunista).
 - **Arquitectura detectada** y **recomendaciones** con justificación técnica, costos y cuándo *no* aplicarlas.
+- **UI/UX** (accesibilidad, estados, formularios, consistencia, navegación…) y **autoría IA / equipo**: cuánto del código vigente se escribió con IA declarada, cuánto sobrevive, qué intervención humana hubo, aporte por colaborador y si las bases tecnológicas son sólidas.
 - Exportación a Markdown, JSON e impresión/PDF.
 
 ## Ejecutar
@@ -56,6 +57,10 @@ frontend/src     React + TypeScript + Vite + Mermaid
 ## Variables de entorno
 
 `ANTHROPIC_API_KEY` (opcional: reescribe reglas con IA; apagado por defecto), `WORK_DIR`, `MAX_REPO_MB`, `FRONTEND_DIST`.
+
+## Autoría con IA: cómo se mide
+
+Se clona la rama con historial y se usa `git log` y `git blame`. La IA solo cuenta si dejó huella (`Co-Authored-By: Claude/Copilot/…`, autor-agente, archivos como `CLAUDE.md`); por eso el porcentaje es un **mínimo**. No se usan detectores de «texto de IA». No se muestran correos de colaboradores. Si el repositorio es demasiado grande para clonarlo con historial, el análisis sigue sin esta sección.
 
 ## Límites (léalos antes de confiar en el informe)
 

@@ -3,7 +3,8 @@
 Seguridad:
   * El token jamás va en la URL ni en los argumentos (se pasa por GIT_CONFIG_* en el entorno del proceso hijo).
   * Toda salida de error se limpia de credenciales antes de mostrarse.
-  * El clon es superficial (depth=1), de una sola rama, sin submódulos y sin ejecutar hooks.
+  * El clon es de una sola rama, sin submódulos y sin ejecutar hooks. Se intenta con historial (para medir autoría) y,
+    si falla o excede el límite, se reintenta superficial (depth=1). Tras clonar se elimina el remoto: nada vuelve a usar la red.
 """
 from __future__ import annotations
 
@@ -126,34 +127,56 @@ class CloneResult:
     sha: str
     date: str
     message: str
+    has_history: bool = False
 
 
-def clone_shallow(parsed: ParsedRepo, branch: str, token: Optional[str], dest: Path) -> CloneResult:
+def _run_clone(cmd: list[str], token: Optional[str], platform: Platform, dest: Path, timeout: int) -> Optional[str]:
+    """Devuelve None si salió bien o el motivo del fallo (ya limpio de credenciales)."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=_clean_env(token, platform))
+    except subprocess.TimeoutExpired:
+        shutil.rmtree(dest, ignore_errors=True)
+        return "El clonado superó el tiempo máximo permitido."
+    if r.returncode != 0:
+        shutil.rmtree(dest, ignore_errors=True)
+        return "No se pudo clonar el repositorio: " + scrub(r.stderr, token)[:300]
+    return None
+
+
+def clone_repo(parsed: ParsedRepo, branch: str, token: Optional[str], dest: Path, history: bool = True) -> CloneResult:
     if dest.exists():
         shutil.rmtree(dest, ignore_errors=True)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["git", "clone", "--depth", "1", "--single-branch", "--no-tags", "--branch", branch,
-           "--", parsed.clone_url, str(dest)]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=config.CLONE_TIMEOUT,
-                           env=_clean_env(token, parsed.platform))
-    except subprocess.TimeoutExpired:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise GitError("El clonado superó el tiempo máximo permitido.")
-    if r.returncode != 0:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise GitError("No se pudo clonar el repositorio: " + scrub(r.stderr, token)[:300])
+    base = ["git", "clone", "--single-branch", "--no-tags", "--branch", branch]
+    tail = ["--", parsed.clone_url, str(dest)]
+    has_history = False
+    err: Optional[str] = "sin intentar"
+    if history:
+        err = _run_clone(base + tail, token, parsed.platform, dest, config.CLONE_TIMEOUT)
+        has_history = err is None
+        if err is None and _dir_size_mb(dest) > config.MAX_REPO_MB:      # historial demasiado pesado: se reintenta sin historial
+            shutil.rmtree(dest, ignore_errors=True)
+            err, has_history = "El historial supera el límite de tamaño.", False
+    if not has_history:
+        err = _run_clone(base[:2] + ["--depth", "1"] + base[2:] + tail, token, parsed.platform, dest, config.CLONE_TIMEOUT)
+        if err:
+            raise GitError(err)
 
     size_mb = _dir_size_mb(dest)
     if size_mb > config.MAX_REPO_MB:
         shutil.rmtree(dest, ignore_errors=True)
         raise GitError(f"El repositorio ({size_mb:.0f} MB) supera el límite de {config.MAX_REPO_MB} MB.")
 
-    def g(*args: str) -> str:
-        return subprocess.run(["git", "-C", str(dest), *args], capture_output=True, text=True,
-                              env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1"}).stdout.strip()
+    env = {**os.environ, "GIT_CONFIG_NOSYSTEM": "1"}
 
-    return CloneResult(dest, g("rev-parse", "HEAD"), g("log", "-1", "--format=%cI"), g("log", "-1", "--format=%s")[:200])
+    def g(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(dest), *args], capture_output=True, text=True, env=env).stdout.strip()
+
+    g("remote", "remove", "origin")          # a partir de aquí ningún comando git puede salir a la red ni usar credenciales
+    return CloneResult(dest, g("rev-parse", "HEAD"), g("log", "-1", "--format=%cI"), g("log", "-1", "--format=%s")[:200], has_history)
+
+
+clone_shallow = clone_repo      # nombre anterior
 
 
 def _dir_size_mb(path: Path) -> float:

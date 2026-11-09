@@ -147,3 +147,9 @@ details > summary { cursor: pointer; font-weight: 600; }
 
 .dims { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .checks { list-style: none; padding-left: 0; } .checks li { margin: 6px 0; }
+
+.stackbar { display: flex; height: 18px; border-radius: 6px; overflow: hidden; background: var(--border); margin: 10px 0; }
+.stackbar span { display: block; height: 100%; }
+.seg-ai { background: var(--accent); } .seg-human { background: var(--low); } .seg-bot { background: var(--muted); }
+.legend2 { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0; margin: 4px 0; font-size: .9rem; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }

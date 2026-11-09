@@ -10,7 +10,7 @@ from typing import Optional
 
 from . import config
 from .analyzer import engine
-from .git_ops import GitError, clone_shallow, guess_production_branch, ls_remote, privacy_from_probe, scrub
+from .git_ops import GitError, clone_repo, guess_production_branch, ls_remote, privacy_from_probe, scrub
 from .models import AnalysisRequest, JobStatus, Platform, Privacy, Report
 from .providers import PROVIDERS, UrlError, parse_repo
 
@@ -88,15 +88,15 @@ def _run(job: Job, req: AnalysisRequest, token: Optional[str]) -> None:
                 assumed = "Indicada en el enlace" not in reason
                 job.update("Validando origen", 12, f"Rama de producción: {branch}. {reason}")
 
-            job.update("Clonando", 15, f"Descargando «{branch}» (solo lectura, sin historial)…")
+            job.update("Clonando", 15, f"Descargando «{branch}» (solo lectura, con historial para medir autoría)…")
             dest = config.WORK_DIR / job.id
-            cl = clone_shallow(parsed, branch, token, dest)
+            cl = clone_repo(parsed, branch, token, dest)
             token = None            # ya no se necesita
-            job.update("Clonando", 28, f"Commit {cl.sha[:8]} descargado.")
+            job.update("Clonando", 28, f"Commit {cl.sha[:8]} descargado" + ("" if cl.has_history else " (sin historial: no se medirá la autoría)") + ".")
 
             meta = dict(url=parsed.web_url, platform=prov.platform, platform_label=prov.label, owner=parsed.owner, repo=parsed.repo,
                         branch=branch, branch_assumed=assumed, privacy=privacy, sha=cl.sha, date=cl.date, message=cl.message,
-                        blob_url_template=prov.blob_template(parsed))
+                        blob_url_template=prov.blob_template(parsed), has_history=cl.has_history)
             report = engine.analyze_directory(dest, meta, job.update, ai=req.ai_enrichment)
             job.report = report
             with job.lock:
