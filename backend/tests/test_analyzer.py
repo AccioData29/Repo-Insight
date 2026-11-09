@@ -346,3 +346,31 @@ def test_markdown_export_includes_ux_and_authorship(tmp_path):
                                  {"src/App.tsx": "export function App() { return (<div><button onClick={go}>OK</button></div>); }\n"})])
     md = to_markdown(_run(repo))
     assert "## UI/UX" in md and "## Autoría: IA y equipo" in md
+
+
+def test_team_audit_flags_single_person_with_ai_and_unverifiable_coauthor(tmp_path):
+    repo = _git_repo(tmp_path, [
+        ("Ana Perez", "feat: uno HU-1\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nCo-Authored-By: Maria Ruiz <maria@example.org>", {"src/a.ts": "export const a = 1;\n"}),
+        ("Ana Perez", "feat: dos HU-2\n\nCo-Authored-By: Claude <noreply@anthropic.com>", {"src/b.ts": "export const b = 1;\n"}),
+    ])
+    t = _run(repo).authorship.team
+    assert t.applicable and t.bus_factor == 1 and t.people == 1
+    st = {c.id: c.status for c in t.checks}
+    assert st["revision"] == "no_cumple" and st["ia_supervision"] == "no_cumple" and st["bus"] == "no_cumple"
+    names = {c.name: c for c in t.coauthors}
+    assert names["Maria Ruiz"].verifiable is False and names["Maria Ruiz"].kind == "persona"
+    assert any(c.kind == "ia" for c in t.coauthors)
+    assert "@" not in t.model_dump_json().replace("noreply@anthropic.com", "")
+    assert t.level == "riesgoso"
+
+
+def test_team_audit_two_people_with_pr_reviews_is_better(tmp_path):
+    repo = _git_repo(tmp_path, [
+        ("Ana Perez", "feat: base #1", {"src/a.ts": "export const a = 1;\n"}),
+        ("Luis Gomez", "feat: otro (#2)\n\nReviewed-by: Ana Perez <a@example.org>", {"src/b.ts": "export const b = 2;\n"}),
+        ("Ana Perez", "fix: ajuste (#3)\n\nReviewed-by: Luis Gomez <l@example.org>", {"src/c.ts": "export const c = 3;\n"}),
+        ("Luis Gomez", "feat: mas (#4)", {"src/d.ts": "export const d = 4;\n"}),
+    ])
+    t = _run(repo).authorship.team
+    st = {c.id: c.status for c in t.checks}
+    assert st["revision"] == "cumple" and t.bus_factor >= 2

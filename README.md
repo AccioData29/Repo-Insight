@@ -6,7 +6,7 @@ Entienda un repositorio sin leer todo el código. Usted entrega el enlace; el si
 - **Flujos del sistema** (diagramas Mermaid + narrativa) desde los puntos de entrada hasta datos y sistemas externos.
 - **Deuda técnica** con urgencia (crítica ≤7 días, alta ≤30, media ≤90, baja oportunista).
 - **Arquitectura detectada** y **recomendaciones** con justificación técnica, costos y cuándo *no* aplicarlas.
-- **UI/UX** (accesibilidad, estados, formularios, consistencia, navegación…) y **autoría IA / equipo**: cuánto del código vigente se escribió con IA declarada, cuánto sobrevive, qué intervención humana hubo, aporte por colaborador y si las bases tecnológicas son sólidas.
+- **UI/UX** (accesibilidad, estados, formularios, consistencia, navegación…) y **autoría IA / equipo**: cuánto del código vigente se escribió con IA declarada, cuánto sobrevive, qué intervención humana hubo, aporte por colaborador y si las bases tecnológicas son sólidas; más una **auditoría del equipo** (revisión por pares, trazabilidad, factor de bus, continuidad, verificación de coautorías humanas y de IA).
 - Exportación a Markdown, JSON e impresión/PDF.
 
 ## Ejecutar

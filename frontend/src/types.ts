@@ -112,6 +112,15 @@ export interface Collaborator {
 }
 export interface OriginQuality { origin: string; lines: number; share_pct: number; files_over_600: number; test_share_pct: number; debt_evidence_files: number }
 export interface FoundationCheck { label: string; passed: boolean; detail: string; why: string }
+export interface AuditCheck { id: string; label: string; status: "cumple" | "parcial" | "no_cumple" | "no_aplica"; severity: "high" | "medium" | "low" | null; detail: string; why: string; how_to_fix: string }
+export interface CoauthorAudit { name: string; kind: "persona" | "ia"; commits: number; paired_with: string[]; areas: string[]; first_commit: string; last_commit: string; authored_commits: number; verifiable: boolean; note: string }
+export interface AreaOwnership { area: string; lines: number; owner: string; owner_pct: number; ai_pct: number; contributors: number }
+export interface PersonActivity { name: string; status: "activa" | "reciente" | "inactiva"; last_commit: string; days_since: number; codebase_share_pct: number }
+export interface TeamAudit {
+  applicable: boolean; level: "solido" | "mejorable" | "riesgoso" | "no_aplica"; headline: string; people: number; bus_factor: number; top_share_pct: number;
+  commits_with_coauthor_pct: number; checks: AuditCheck[]; coauthors: CoauthorAudit[]; areas: AreaOwnership[]; activity: PersonActivity[]; limits: string[];
+}
+
 export interface AuthorshipReview {
   available: boolean; reason: string;
   verdict: "ia_mayoritaria" | "mixto" | "humano_con_apoyo_ia" | "senales_sin_atribucion" | "sin_evidencia" | "no_disponible";
@@ -121,7 +130,7 @@ export interface AuthorshipReview {
   tools: AiTool[]; artifacts: string[]; indicators: Indicator[];
   intervention_level: "alta" | "media" | "baja" | "no_medible"; intervention_text: string; intervention_facts: string[];
   collaborators: Collaborator[]; quality: OriginQuality[];
-  foundations_level: "solidas" | "aceptables" | "fragiles"; foundations_text: string; foundations: FoundationCheck[]; limits: string[];
+  foundations_level: "solidas" | "aceptables" | "fragiles"; foundations_text: string; foundations: FoundationCheck[]; team?: TeamAudit | null; limits: string[];
 }
 
 export interface Report {

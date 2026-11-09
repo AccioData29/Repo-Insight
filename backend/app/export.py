@@ -48,6 +48,13 @@ def to_markdown(r: Report) -> str:
         out += [f"| {c.name} | {c.commits} | {c.codebase_share_pct}% | {c.survival_pct}% | {c.ai_share_pct}% |" for c in a.collaborators]
         out += ["", f"### Bases tecnológicas: {a.foundations_level}", "", a.foundations_text, ""]
         out += [f"- {'✔' if f.passed else '✘'} {f.label}: {f.detail}" for f in a.foundations]
+        if a.team and a.team.applicable:
+            t = a.team
+            out += ["", f"### Auditoría del equipo: {t.level}", "", t.headline, "", f"Factor de bus: {t.bus_factor} · concentración de la persona principal: {t.top_share_pct}% · commits con coautor: {t.commits_with_coauthor_pct}%", ""]
+            out += [f"- [{c.status}] {c.label}: {c.detail}" for c in t.checks]
+            if t.coauthors:
+                out += ["", "#### Coautores", ""] + [f"- {c.name} ({c.kind}): {c.commits} commit(s) — {c.note}" for c in t.coauthors]
+            out += ["", "#### Límites de la auditoría", ""] + [f"- {x}" for x in t.limits]
         out += ["", "### Límites", ""] + [f"- {x}" for x in a.limits] + [""]
     out += ["## Reglas de negocio", ""]
     cat = None

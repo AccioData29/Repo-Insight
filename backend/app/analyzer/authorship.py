@@ -24,6 +24,7 @@ from typing import Optional
 
 from ..models import (AiTool, Architecture, AuthorshipReview, Collaborator, DebtFinding, FoundationCheck, Indicator,
                       OriginQuality)
+from . import team_audit
 from .common import TEST_RE, FileInfo, Inventory
 
 MAX_COMMITS = int(os.getenv("AUTHORSHIP_MAX_COMMITS", "6000"))
@@ -72,6 +73,8 @@ class Commit:
     added: int = 0
     deleted: int = 0
     files: dict[str, int] = field(default_factory=dict)       # ruta -> líneas agregadas
+    email: str = ""
+    coauthors: list[tuple[str, str]] = field(default_factory=list)      # (nombre, persona|ia)
 
 
 def _git(root: Path, *args: str, timeout: int = 120) -> str:
@@ -111,7 +114,14 @@ def _parse_log(root: Path) -> tuple[list[Commit], bool]:
             continue
         sha, parents, an, ae, date, cn, ce, subject, body, rest = parts[:10]
         cls, tool = _classify(an, ae, cn, ce, body, subject)
-        c = Commit(sha=sha, parents=len(parents.split()), author=an.strip() or ae.split("@")[0], date=date, subject=subject.strip(), body=body, cls=cls, tool=tool)
+        c = Commit(sha=sha, parents=len(parents.split()), author=an.strip() or ae.split("@")[0], date=date, subject=subject.strip(), body=body, cls=cls, tool=tool, email=ae.strip().lower())
+        for nm in re.findall(r"(?im)^co-authored-by:\s*([^<\n]+?)\s*<", body):
+            nm = nm.strip()
+            if not nm or nm.lower() == c.author.lower():
+                continue
+            is_ai = any(rx.search(f"co-authored-by: {nm} <x>") for _, rx in AI_TRAILERS) or bool(AI_IDENTITY.search(nm))
+            if not BOT_IDENTITY.search(nm):
+                c.coauthors.append((nm, "ia" if is_ai else "persona"))
         for line in rest.strip().splitlines():
             m = re.match(r"^(\d+|-)\t(\d+|-)\t(.+)$", line)
             if not m:
@@ -457,6 +467,7 @@ def build(root: Path, inv: Inventory, debt: list[DebtFinding], arch: Architectur
         intervention_level=level, intervention_text=text, intervention_facts=facts,  # type: ignore[arg-type]
         collaborators=collabs, quality=quality, foundations_level=f_level, foundations_text=f_text, foundations=found,  # type: ignore[arg-type]
         limits=_limits(truncated or blame_truncated))
+    review.team = team_audit.build(commits, survive, blames, by_sha, collabs, total)
     return review
 
 

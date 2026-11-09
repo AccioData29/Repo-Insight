@@ -300,6 +300,61 @@ class FoundationCheck(BaseModel):
     why: str = ""
 
 
+class AuditCheck(BaseModel):
+    id: str
+    label: str
+    status: Literal["cumple", "parcial", "no_cumple", "no_aplica"]
+    severity: Optional[Literal["high", "medium", "low"]] = None
+    detail: str
+    why: str = ""
+    how_to_fix: str = ""
+
+
+class CoauthorAudit(BaseModel):
+    name: str
+    kind: Literal["persona", "ia"]
+    commits: int
+    paired_with: list[str] = []
+    areas: list[str] = []
+    first_commit: str = ""
+    last_commit: str = ""
+    authored_commits: int = 0
+    verifiable: bool = False
+    note: str = ""
+
+
+class AreaOwnership(BaseModel):
+    area: str
+    lines: int
+    owner: str
+    owner_pct: float
+    ai_pct: float
+    contributors: int
+
+
+class PersonActivity(BaseModel):
+    name: str
+    status: Literal["activa", "reciente", "inactiva"]
+    last_commit: str
+    days_since: int
+    codebase_share_pct: float
+
+
+class TeamAudit(BaseModel):
+    applicable: bool
+    level: Literal["solido", "mejorable", "riesgoso", "no_aplica"] = "no_aplica"
+    headline: str = ""
+    people: int = 0
+    bus_factor: int = 0
+    top_share_pct: float = 0
+    commits_with_coauthor_pct: float = 0
+    checks: list[AuditCheck] = []
+    coauthors: list[CoauthorAudit] = []
+    areas: list[AreaOwnership] = []
+    activity: list[PersonActivity] = []
+    limits: list[str] = []
+
+
 class AuthorshipReview(BaseModel):
     available: bool
     reason: str = ""
@@ -332,6 +387,7 @@ class AuthorshipReview(BaseModel):
     foundations_level: Literal["solidas", "aceptables", "fragiles"] = "aceptables"
     foundations_text: str = ""
     foundations: list[FoundationCheck] = []
+    team: Optional[TeamAudit] = None
     limits: list[str] = []
 
 

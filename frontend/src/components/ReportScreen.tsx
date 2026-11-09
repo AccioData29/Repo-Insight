@@ -10,6 +10,7 @@ import RulesTab from "./tabs/RulesTab";
 import SummaryTab from "./tabs/SummaryTab";
 import UxTab from "./tabs/UxTab";
 import AuthorshipTab from "./tabs/AuthorshipTab";
+import TeamTab from "./tabs/TeamTab";
 
 const TABS = [
   { id: "resumen", label: "Resumen" },
@@ -18,6 +19,7 @@ const TABS = [
   { id: "deuda", label: "Deuda técnica" },
   { id: "ux", label: "UI/UX" },
   { id: "autoria", label: "Autoría IA / equipo" },
+  { id: "equipo", label: "Auditoría del equipo" },
   { id: "arquitectura", label: "Arquitectura" },
   { id: "recomendaciones", label: "Recomendaciones" },
   { id: "limites", label: "Alcance y límites" },
@@ -76,7 +78,7 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
         </section>
 
         <div className="tabs no-print" role="tablist" aria-label="Secciones del informe">
-          {TABS.filter((t) => (t.id !== "ux" || r.ux) && (t.id !== "autoria" || r.authorship)).map((t) => (
+          {TABS.filter((t) => (t.id !== "ux" || r.ux) && (t.id !== "autoria" || r.authorship) && (t.id !== "equipo" || r.authorship?.team?.applicable)).map((t) => (
             <button key={t.id} role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} className={tab === t.id ? "on" : ""}
                     onClick={() => go(t.id)}>
               {t.label}{t.id === "reglas" ? ` (${r.rules.length})` : t.id === "deuda" ? ` (${r.debt.length})` : ""}
@@ -91,6 +93,7 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
           {tab === "deuda" && <DebtTab r={r} />}
           {tab === "ux" && <UxTab r={r} />}
           {tab === "autoria" && <AuthorshipTab r={r} />}
+          {tab === "equipo" && <TeamTab r={r} />}
           {tab === "arquitectura" && <ArchitectureTab r={r} />}
           {tab === "recomendaciones" && <RecommendationsTab r={r} />}
           {tab === "limites" && (
