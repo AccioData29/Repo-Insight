@@ -1,0 +1,9 @@
+services:
+  repo-insight:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      # Opcional: activa la redacción asistida por Claude (desactivada por defecto)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    tmpfs: ["/tmp/repo-insight"]   # los clones viven solo en memoria y se borran al terminar
+    read_only: true
