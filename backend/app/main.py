@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, jobs
+from . import config, export_html, jobs
 from .analyzer import enrich
 from .export import to_markdown
 from .git_ops import GitError, guess_production_branch, ls_remote, privacy_from_probe
@@ -19,6 +19,7 @@ app = FastAPI(title="Repo Insight", version="1.0.0")
 def get_config() -> dict:
     return {
         "ai_available": enrich.available(),
+        "html_export_available": export_html.available(),
         "platforms": [{"id": p.platform.value, "label": p.label, "analysis_supported": p.analysis_supported}
                       for p in PROVIDERS.values()],
     }
@@ -106,6 +107,19 @@ def export_md(job_id: str) -> PlainTextResponse:
     r = job.report
     return PlainTextResponse(to_markdown(r), headers={
         "Content-Disposition": f'attachment; filename="informe-{r.meta.repo}.md"'}, media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/api/analyses/{job_id}/export.html", response_class=HTMLResponse)
+def export_html_report(job_id: str) -> HTMLResponse:
+    """Informe interactivo en un solo archivo HTML: se abre sin servidor, sin cuenta y sin conexión."""
+    job = jobs.JOBS.get(job_id)
+    if not job or not job.report:
+        raise HTTPException(404, "Informe no disponible.")
+    try:
+        body = export_html.to_html(job.report)
+    except export_html.TemplateMissing as exc:
+        raise HTTPException(503, str(exc))
+    return HTMLResponse(body, headers={"Content-Disposition": f'attachment; filename="informe-{job.report.meta.repo}.html"'})
 
 
 # ---- Frontend compilado (despliegue de un solo contenedor) ----

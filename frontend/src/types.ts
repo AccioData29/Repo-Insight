@@ -116,9 +116,11 @@ export interface AuditCheck { id: string; label: string; status: "cumple" | "par
 export interface CoauthorAudit { name: string; kind: "persona" | "ia"; commits: number; paired_with: string[]; areas: string[]; first_commit: string; last_commit: string; authored_commits: number; verifiable: boolean; note: string }
 export interface AreaOwnership { area: string; lines: number; owner: string; owner_pct: number; ai_pct: number; contributors: number }
 export interface PersonActivity { name: string; status: "activa" | "reciente" | "inactiva"; last_commit: string; days_since: number; codebase_share_pct: number }
+export interface TimelineSeries { name: string; kind: "persona" | "ia" | "bot"; role: "autor" | "coautor" | "autor y coautor"; commits: number[]; added: number[]; total_commits: number; total_added: number }
+export interface TeamTimeline { granularity: "semana" | "mes"; buckets: string[]; total_commits: number[]; total_added: number[]; series: TimelineSeries[]; insights: string[]; note: string }
 export interface TeamAudit {
   applicable: boolean; level: "solido" | "mejorable" | "riesgoso" | "no_aplica"; headline: string; people: number; bus_factor: number; top_share_pct: number;
-  commits_with_coauthor_pct: number; checks: AuditCheck[]; coauthors: CoauthorAudit[]; areas: AreaOwnership[]; activity: PersonActivity[]; limits: string[];
+  commits_with_coauthor_pct: number; checks: AuditCheck[]; coauthors: CoauthorAudit[]; areas: AreaOwnership[]; activity: PersonActivity[]; timeline?: TeamTimeline | null; limits: string[];
 }
 
 export interface AuthorshipReview {

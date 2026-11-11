@@ -7,7 +7,7 @@ Entienda un repositorio sin leer todo el código. Usted entrega el enlace; el si
 - **Deuda técnica** con urgencia (crítica ≤7 días, alta ≤30, media ≤90, baja oportunista).
 - **Arquitectura detectada** y **recomendaciones** con justificación técnica, costos y cuándo *no* aplicarlas.
 - **UI/UX** (accesibilidad, estados, formularios, consistencia, navegación…) y **autoría IA / equipo**: cuánto del código vigente se escribió con IA declarada, cuánto sobrevive, qué intervención humana hubo, aporte por colaborador y si las bases tecnológicas son sólidas; más una **auditoría del equipo** (revisión por pares, trazabilidad, factor de bus, continuidad, verificación de coautorías humanas y de IA).
-- Exportación a Markdown, JSON e impresión/PDF.
+- Exportación a **HTML autocontenido** (un solo archivo interactivo que se abre con doble clic), Markdown, JSON e impresión/PDF.
 
 ## Ejecutar
 
@@ -22,6 +22,21 @@ cd backend && pip install -r requirements.txt && uvicorn app.main:app --port 800
 
 Desarrollo: `uvicorn app.main:app --reload` en `backend/` y `npm run dev` en `frontend/` (proxy `/api`).
 Pruebas: `cd backend && pytest`.
+
+## Entregable que no depende de ninguna suscripción
+
+El informe final es **un solo archivo `.html`** con todo incluido (datos, interfaz y diagramas): se abre en cualquier navegador, sin servidor, sin cuenta, sin internet y se puede enviar por correo. Tres formas de obtenerlo, todas sin Claude:
+
+```bash
+# 1) Desde la pantalla: botón «Informe HTML» al terminar el análisis.
+# 2) Desde la línea de comandos (sin servidor ni navegador):
+cd backend
+python -m app.cli https://github.com/owner/repo --branch main --out informe.html [--md informe.md] [--json informe.json]
+GITHUB_TOKEN=... python -m app.cli <url-privada> --token-env GITHUB_TOKEN --out informe.html   # el token solo por variable de entorno
+# 3) API: GET /api/analyses/{id}/export.html
+```
+
+Requiere haber generado la plantilla una vez (`cd frontend && npm ci && npm run build:report`; la imagen Docker ya la trae). El análisis es 100 % estático y local; la IA de Claude es opcional y está apagada por defecto.
 
 ## Flujo en pantalla
 
@@ -56,7 +71,7 @@ frontend/src     React + TypeScript + Vite + Mermaid
 
 ## Variables de entorno
 
-`ANTHROPIC_API_KEY` (opcional: reescribe reglas con IA; apagado por defecto), `WORK_DIR`, `MAX_REPO_MB`, `FRONTEND_DIST`.
+`ANTHROPIC_API_KEY` (opcional: reescribe reglas con IA; apagado por defecto), `WORK_DIR`, `MAX_REPO_MB`, `FRONTEND_DIST`, `REPORT_TEMPLATE` (ruta de la plantilla del informe HTML).
 
 ## Autoría con IA: cómo se mide
 

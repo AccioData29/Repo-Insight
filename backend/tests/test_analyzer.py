@@ -374,3 +374,47 @@ def test_team_audit_two_people_with_pr_reviews_is_better(tmp_path):
     t = _run(repo).authorship.team
     st = {c.id: c.status for c in t.checks}
     assert st["revision"] == "cumple" and t.bus_factor >= 2
+
+
+def test_team_timeline_credits_coauthors_like_github(tmp_path):
+    repo = _git_repo(tmp_path, [
+        ("Ana Perez", "feat: a\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nCo-Authored-By: Maria Ruiz <m@example.org>", {"src/a.ts": "a\nb\nc\n"}),
+        ("Ana Perez", "feat: b\n\nCo-Authored-By: Claude <noreply@anthropic.com>", {"src/b.ts": "a\nb\n"}),
+        ("Luis Gomez", "feat: c", {"src/c.ts": "a\n"}),
+    ])
+    tl = _run(repo).authorship.team.timeline
+    by = {s.name: s for s in tl.series}
+    assert by["Ana Perez"].total_commits == 2 and by["Ana Perez"].total_added == 5
+    assert by["Claude"].total_commits == 2 and by["Claude"].kind == "ia" and by["Claude"].role == "coautor"
+    assert by["Maria Ruiz"].total_commits == 1 and by["Maria Ruiz"].total_added == 3
+    assert sum(tl.total_commits) == 3 and len(tl.buckets) == len(tl.total_commits)
+
+
+# ---------------- Informe HTML autocontenido (sin depender de ningún servicio) ----------------
+
+def test_html_export_embeds_report_safely(tmp_path):
+    from app import export_html
+    tpl = tmp_path / "t.html"
+    tpl.write_text('<!doctype html><html><head><title>x</title>\n<script type="module">/*app*/</script></head><body><div id="root"></div></body></html>', encoding="utf-8")
+    repo = tmp_path / "r"
+    repo.mkdir()
+    (repo / "app.py").write_text('MSG = "</script><b>x</b>"\n', encoding="utf-8")
+    report = analyze_directory(repo, dict(url="u", branch="main", owner="o", repo="r"))
+    out = export_html.to_html(report, tpl)
+    assert out.index("window.__REPORT__=") < out.index('<script type="module"')    # los datos se cargan antes de la app
+    assert "<title>Informe · o/r</title>" in out
+    payload = out.split("window.__REPORT__=")[1].split("</script>")[0]
+    assert "<" not in payload                      # no puede cerrar la etiqueta ni inyectar HTML
+    import json
+    assert json.loads(payload)["meta"]["repo"] == "r"
+    assert out.count("</script>") == 2             # solo los dos legítimos
+
+
+def test_html_export_missing_template_is_clear(tmp_path, monkeypatch):
+    import pytest
+    from app import export_html
+    monkeypatch.setattr(export_html, "_CANDIDATES", [])
+    report = analyze_directory(tmp_path, dict(url="u", branch="main", owner="o", repo="r"))
+    assert not export_html.available()
+    with pytest.raises(export_html.TemplateMissing, match="build:report"):
+        export_html.to_html(report)

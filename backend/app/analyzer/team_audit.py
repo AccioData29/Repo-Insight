@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import date as _date, datetime, timedelta
 from typing import Any
 
-from ..models import AreaOwnership, AuditCheck, CoauthorAudit, Collaborator, PersonActivity, TeamAudit
+from ..models import (AreaOwnership, AuditCheck, CoauthorAudit, Collaborator, PersonActivity, TeamAudit, TeamTimeline,
+                      TimelineSeries)
 
 _AI_CLS = ("ia_autor", "ia_coautor")
 _TRACE = re.compile(r"(?<![\w/])#\d{1,6}\b|\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b|\b(?:HU|US|AJ|RF|REQ|E)-[\w-]+", re.I)
@@ -44,6 +45,74 @@ def _pct(a: float, b: float) -> float:
 def _check(id_: str, label: str, status: str, detail: str, why: str = "", fix: str = "", sev: str | None = None) -> AuditCheck:
     return AuditCheck(id=id_, label=label, status=status, severity=sev if status in ("parcial", "no_cumple") else None,  # type: ignore[arg-type]
                       detail=detail, why=why, how_to_fix=fix)
+
+
+def _timeline(commits: list[Any], coauthors: list[CoauthorAudit]) -> TeamTimeline | None:
+    """Actividad por periodo y por colaborador. Igual que la gráfica «Contributors» de GitHub: sin commits de fusión, y el coautor
+    de un commit recibe el crédito completo de ese commit (commits y líneas agregadas)."""
+    real = [c for c in commits if c.parents <= 1]
+    if not real:
+        return None
+    days = [_date.fromisoformat(c.date[:10]) for c in real]
+    first, last = min(days), max(days)
+    monthly = (last - first).days > 730
+    def bucket(d: _date) -> _date:
+        return d.replace(day=1) if monthly else d - timedelta(days=d.weekday())
+    start, end = bucket(first), bucket(last)
+    buckets: list[_date] = []
+    cur = start
+    while cur <= end:
+        buckets.append(cur)
+        cur = (cur.replace(year=cur.year + (cur.month == 12), month=cur.month % 12 + 1) if monthly else cur + timedelta(days=7))
+    idx = {b: i for i, b in enumerate(buckets)}
+    nb = len(buckets)
+    total_c, total_a = [0] * nb, [0] * nb
+    acc: dict[str, dict] = {}
+
+    def add(name: str, kind: str, role: str, i: int, added: int) -> None:
+        a = acc.setdefault(name.strip().lower(), dict(name=name, kind=kind, roles=set(), c=[0] * nb, a=[0] * nb))
+        a["roles"].add(role)
+        a["c"][i] += 1
+        a["a"][i] += added
+        if kind == "persona" and a["kind"] != "persona":
+            a["kind"] = kind
+
+    for c, d in zip(real, days):
+        i = idx[bucket(d)]
+        total_c[i] += 1
+        total_a[i] += c.added
+        add(c.author, "ia" if c.cls == "ia_autor" else "bot" if c.cls == "bot" else "persona", "autor", i, c.added)
+        for nm, kind in c.coauthors:
+            add(nm, kind, "coautor", i, c.added)
+    series = []
+    for a in sorted(acc.values(), key=lambda x: -sum(x["c"])):
+        roles = a["roles"]
+        role = "autor y coautor" if len(roles) == 2 else next(iter(roles))
+        series.append(TimelineSeries(name=a["name"], kind=a["kind"], role=role, commits=a["c"], added=a["a"],  # type: ignore[arg-type]
+                                     total_commits=sum(a["c"]), total_added=sum(a["a"])))
+    # ---- lecturas que sustentan la auditoría ----
+    ins: list[str] = []
+    n_real, tot_added = len(real), sum(total_a)
+    active = sum(1 for x in total_c if x)
+    unit = "mes" if monthly else "semana"
+    pk = max(range(nb), key=lambda i: total_c[i])
+    ins.append(f"El trabajo se concentra: la {unit} del {buckets[pk].isoformat()} reúne {total_c[pk]} de {n_real} commits ({_pct(total_c[pk], n_real)}%).")
+    if nb >= 8:
+        tail = sum(total_c[-4:])
+        ins.append(f"Las últimas 4 {unit}s concentran el {_pct(tail, n_real)}% de los commits; hubo actividad en {active} de {nb} {unit}s.")
+    ia_total = next((x for x in series if x.kind == "ia"), None)
+    authors = [x for x in series if x.kind == "persona" and "autor" in x.role]
+    if ia_total and authors:
+        ins.append(f"«{ia_total.name}» figura en {ia_total.total_commits} commits, casi los mismos que «{authors[0].name}» ({authors[0].total_commits}): "
+                   "la actividad de la persona y la de la IA son prácticamente la misma.") if ia_total.total_commits >= 0.8 * authors[0].total_commits else None
+    for x in series:
+        if x.kind == "persona" and x.role == "coautor" and x.total_commits <= 3 and tot_added and x.total_added / tot_added >= 0.02:
+            ins.append(f"{x.name} figura en {x.total_commits} commit(s) que agregaron {x.total_added:,} líneas ({_pct(x.total_added, tot_added)}% de todo lo agregado). "
+                       "Es una coautoría de peso que conviene respaldar con commits propios o con el PR donde se revisó.".replace(",", "."))
+    ins = [i for i in ins if i]
+    return TeamTimeline(granularity="mes" if monthly else "semana", buckets=[b.isoformat() for b in buckets], total_commits=total_c, total_added=total_a,  # type: ignore[arg-type]
+                        series=series, insights=ins,
+                        note="Igual que la gráfica «Contributors» de GitHub: no cuenta commits de fusión y el coautor de un commit recibe el crédito completo de ese commit.")
 
 
 def build(commits: list[Any], survive: Counter, blames: dict[str, dict[str, int]], by_sha: dict[str, Any],
@@ -114,8 +183,8 @@ def build(commits: list[Any], survive: Counter, blames: dict[str, dict[str, int]
             if own:
                 note = f"También figura como autora/autor de {own} commit(s): su colaboración es verificable."
             else:
-                note = ("Figura como coautor/a pero no tiene commits propios en esta rama: su aporte no se puede verificar en git "
-                        "(puede ser trabajo en pareja o un reconocimiento). Conviene confirmarlo.")
+                note = ("Figura como coautor/a (GitHub la/lo muestra como contribuyente por esa coautoría) pero no publicó commits propios en esta rama: "
+                        "su aporte no se puede verificar en git (puede ser trabajo en pareja o un reconocimiento). Conviene confirmarlo.")
         else:
             humans = ", ".join(list(d["pair"])[:2])
             note = (f"Herramienta de IA declarada. Quien publica ese código es {humans}; no hay revisión independiente registrada en git."
@@ -203,7 +272,7 @@ def build(commits: list[Any], survive: Counter, blames: dict[str, dict[str, int]
     }[level] + solo
     return TeamAudit(
         applicable=True, level=level, headline=headline, people=len(people), bus_factor=bus, top_share_pct=top,  # type: ignore[arg-type]
-        commits_with_coauthor_pct=_pct(with_co, n), checks=checks, coauthors=coauthors, areas=areas, activity=activity,
+        commits_with_coauthor_pct=_pct(with_co, n), checks=checks, coauthors=coauthors, areas=areas, activity=activity, timeline=_timeline(commits, coauthors),
         limits=[
             "Es una auditoría de proceso con evidencia de git, no una evaluación de desempeño: las líneas de código no miden productividad ni calidad de una persona.",
             "No se miden horarios ni se muestran correos. Los nombres vienen del historial y pueden ser alias o cuentas compartidas.",

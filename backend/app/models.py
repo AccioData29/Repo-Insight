@@ -340,6 +340,26 @@ class PersonActivity(BaseModel):
     codebase_share_pct: float
 
 
+class TimelineSeries(BaseModel):
+    name: str
+    kind: Literal["persona", "ia", "bot"]
+    role: Literal["autor", "coautor", "autor y coautor"]
+    commits: list[int]
+    added: list[int]
+    total_commits: int
+    total_added: int
+
+
+class TeamTimeline(BaseModel):
+    granularity: Literal["semana", "mes"]
+    buckets: list[str]                      # fecha de inicio de cada periodo (YYYY-MM-DD)
+    total_commits: list[int]
+    total_added: list[int]
+    series: list[TimelineSeries]
+    insights: list[str] = []
+    note: str = ""
+
+
 class TeamAudit(BaseModel):
     applicable: bool
     level: Literal["solido", "mejorable", "riesgoso", "no_aplica"] = "no_aplica"
@@ -352,6 +372,7 @@ class TeamAudit(BaseModel):
     coauthors: list[CoauthorAudit] = []
     areas: list[AreaOwnership] = []
     activity: list[PersonActivity] = []
+    timeline: Optional[TeamTimeline] = None
     limits: list[str] = []
 
 

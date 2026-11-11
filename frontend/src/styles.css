@@ -155,3 +155,14 @@ details > summary { cursor: pointer; font-weight: 600; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
 
 .check-row { margin: 10px 0; list-style: none; }
+
+.chart { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .axis { fill: var(--muted); font-size: 11px; }
+.mini-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.mini-total { text-align: right; }
+.jump { display: flex; gap: 6px; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border); }
+.jump button { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: .85rem; }
+.jump button:hover { border-color: var(--accent); }
+.aud-section { scroll-margin-top: 56px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

@@ -4,7 +4,7 @@ WORKDIR /web
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
-RUN npm run build
+RUN npm run build && npm run build:report
 
 # --- Etapa 2: API + interfaz compilada ---
 FROM python:3.13-slim
@@ -16,7 +16,8 @@ COPY backend/requirements.txt ./backend/
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 COPY --from=web /web/dist ./frontend/dist
-ENV FRONTEND_DIST=/srv/frontend/dist WORK_DIR=/tmp/repo-insight
+COPY --from=web /web/dist-report ./frontend/dist-report
+ENV FRONTEND_DIST=/srv/frontend/dist REPORT_TEMPLATE=/srv/frontend/dist-report/index.html WORK_DIR=/tmp/repo-insight
 USER app
 WORKDIR /srv/backend
 EXPOSE 8000

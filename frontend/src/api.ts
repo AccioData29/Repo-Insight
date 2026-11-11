@@ -29,3 +29,4 @@ export const startAnalysis = (p: SourcePayload) =>
 export const getStatus = (id: string) => fetch(`/api/analyses/${id}`).then(j<JobStatus>);
 export const getReport = (id: string) => fetch(`/api/analyses/${id}/report`).then(j<Report>);
 export const exportMdUrl = (id: string) => `/api/analyses/${id}/export.md`;
+export const exportHtmlUrl = (id: string) => `/api/analyses/${id}/export.html`;

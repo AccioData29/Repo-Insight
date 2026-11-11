@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { exportMdUrl } from "../api";
+import { exportHtmlUrl, exportMdUrl } from "../api";
 import type { Audience, Report } from "../types";
 import { AudienceContext } from "./shared";
 import ArchitectureTab from "./tabs/ArchitectureTab";
@@ -9,8 +9,7 @@ import RecommendationsTab from "./tabs/RecommendationsTab";
 import RulesTab from "./tabs/RulesTab";
 import SummaryTab from "./tabs/SummaryTab";
 import UxTab from "./tabs/UxTab";
-import AuthorshipTab from "./tabs/AuthorshipTab";
-import TeamTab from "./tabs/TeamTab";
+import AuditTab from "./tabs/AuditTab";
 
 const TABS = [
   { id: "resumen", label: "Resumen" },
@@ -18,8 +17,7 @@ const TABS = [
   { id: "flujos", label: "Flujos" },
   { id: "deuda", label: "Deuda técnica" },
   { id: "ux", label: "UI/UX" },
-  { id: "autoria", label: "Autoría IA / equipo" },
-  { id: "equipo", label: "Auditoría del equipo" },
+  { id: "autoria", label: "Auditoría IA / equipo" },
   { id: "arquitectura", label: "Arquitectura" },
   { id: "recomendaciones", label: "Recomendaciones" },
   { id: "limites", label: "Alcance y límites" },
@@ -65,10 +63,11 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
                 <button className={aud === "tecnica" ? "on" : ""} onClick={() => setAud("tecnica")}>Vista técnica</button>
               </div>
               <div className="row gap">
+                {jobId && <a className="btn btn-primary" href={exportHtmlUrl(jobId)} download title="Un solo archivo que se abre en cualquier navegador, sin servidor ni cuentas">Informe HTML</a>}
                 {jobId && <a className="btn btn-secondary" href={exportMdUrl(jobId)} download>Markdown</a>}
                 {jobId && <button className="btn btn-secondary" onClick={downloadJson}>JSON</button>}
                 {jobId && <button className="btn btn-secondary" onClick={() => window.print()}>Imprimir / PDF</button>}
-                {jobId && <button className="btn btn-primary" onClick={onNew}>Nuevo análisis</button>}
+                {jobId && <button className="btn btn-secondary" onClick={onNew}>Nuevo análisis</button>}
               </div>
             </div>
           </div>
@@ -78,7 +77,7 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
         </section>
 
         <div className="tabs no-print" role="tablist" aria-label="Secciones del informe">
-          {TABS.filter((t) => (t.id !== "ux" || r.ux) && (t.id !== "autoria" || r.authorship) && (t.id !== "equipo" || r.authorship?.team?.applicable)).map((t) => (
+          {TABS.filter((t) => (t.id !== "ux" || r.ux) && (t.id !== "autoria" || r.authorship)).map((t) => (
             <button key={t.id} role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} className={tab === t.id ? "on" : ""}
                     onClick={() => go(t.id)}>
               {t.label}{t.id === "reglas" ? ` (${r.rules.length})` : t.id === "deuda" ? ` (${r.debt.length})` : ""}
@@ -92,8 +91,7 @@ export default function ReportScreen({ jobId, report: r, onNew }: { jobId: strin
           {tab === "flujos" && <FlowsTab r={r} openRules={openRules} />}
           {tab === "deuda" && <DebtTab r={r} />}
           {tab === "ux" && <UxTab r={r} />}
-          {tab === "autoria" && <AuthorshipTab r={r} />}
-          {tab === "equipo" && <TeamTab r={r} />}
+          {tab === "autoria" && <AuditTab r={r} />}
           {tab === "arquitectura" && <ArchitectureTab r={r} />}
           {tab === "recomendaciones" && <RecommendationsTab r={r} />}
           {tab === "limites" && (
